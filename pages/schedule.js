@@ -5,23 +5,15 @@ import axios from 'axios'
 import { addDays, subDays } from 'date-fns'
 
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons'
-import { Button, Container, Box, IconButton } from '@chakra-ui/react'
+import { Button, Container, Box, IconButton, SimpleGrid, Spinner } from '@chakra-ui/react'
 
-import { getToken } from './../config/firebase/client'
-import { useAuth, Logo, formatDate } from './../components'
+import { formatDate, useAuth, Logo, TimeBlock } from './../components'
 
-const getAgenda = async (when) => {
-    const token = await getToken()
-
-    return axios({
-        method: 'get',
-        url: '/api/agenda',
-        params: { when },
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
-    })
-}
+const getSchedule = async (when) => axios({
+    method: 'get',
+    url: '/api/schedule',
+    params: { when, username: window.location.pathname },
+})
 
 const Header = ({ children }) => (
     <Box p={4} display="flex" alignItems="center" justifyContent="space-between">
@@ -29,18 +21,15 @@ const Header = ({ children }) => (
     </Box>
 )
 
-export default function Agenda() {
+
+export default function Schedule() {
     const router = useRouter()
     const [auth, { logout }] = useAuth()
     const [when, setWhen] = useState(() => new Date())
-    const [data, { loading, status, error }, fetch] = useFetch(getAgenda, { lazy: true })
+    const [data, { loading, status, error }, fetch] = useFetch(getSchedule, { lazy: true })
 
     const addDay = () => setWhen(prevState => addDays(prevState, 1))
     const removeDay = () => setWhen(prevState => subDays(prevState, 1))
-
-    useEffect(() => {
-        !auth.user && router.push('/')
-    }, [auth.user])
 
     useEffect(() => {
         fetch(when)
@@ -58,6 +47,11 @@ export default function Agenda() {
                 <Box flex={1} textAlign="center">{formatDate(when, 'PPPP')}</Box>
                 <IconButton icon={<ChevronRightIcon />} bg="transparent" onClick={addDay} />
             </Box>
+
+            <SimpleGrid p={4} columns={2} spacing={4}>
+                {loading && <Spinner tickness="4px" speed="0.65s" emptyColor="gray.200" color="blue.500" size="xl" />}
+                {data?.map(time => <TimeBlock key={time} time={time} />)}
+            </SimpleGrid>
         </Container>
     )
 }
