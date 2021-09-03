@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useFormik } from 'formik'
 import * as yup from 'yup'
 import axios from 'axios'
+import { format } from 'date-fns'
 
 import {
     Button,
@@ -16,16 +17,17 @@ import {
 
 import { Input } from '../Input'
 
-const setSchedule = async data => axios({
+const setSchedule = async ({ date, ...data }) => axios({
     method: 'post',
     url: '/api/schedule',
     data: {
         ...data,
+        date: format(date, 'yyyy-MM-dd'),
         username: window.location.pathname.replace('/', ''),
     },
 })
 
-const ModalTimeBlock = ({ isOpen, onClose, onComplete, children }) => (
+const ModalTimeBlock = ({ isOpen, onClose, onComplete, isSubmitting, children }) => (
     <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
@@ -36,8 +38,8 @@ const ModalTimeBlock = ({ isOpen, onClose, onComplete, children }) => (
             </ModalBody>
 
             <ModalFooter>
-                <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-                <Button colorScheme="blue" mr={3} onClick={onComplete}>
+                {!isSubmitting && <Button variant="ghost" onClick={onClose}>Cancelar</Button>}
+                <Button colorScheme="blue" mr={3} onClick={onComplete} isLoading={isSubmitting}>
                     Reservar horário
                 </Button>
             </ModalFooter>
@@ -46,12 +48,20 @@ const ModalTimeBlock = ({ isOpen, onClose, onComplete, children }) => (
 )
 
 
-export const TimeBlock = ({ time }) => {
+export const TimeBlock = ({ time, date, disabled, onSuccess }) => {
     const [isOpen, setIsOpen] = useState(false)
     const toggle = () => setIsOpen(prevState => !prevState)
 
-    const { values, handleSubmit, handleChange, handleBlur, errors, touched, } = useFormik({
-        onSubmit: (values) => setSchedule({ ...values, when: time }),
+    const { values, handleSubmit, handleChange, handleBlur, errors, touched, isSubmitting } = useFormik({
+        onSubmit: async (values) => {
+            try {
+                await setSchedule({ ...values, time, date })
+                toggle()
+                onSuccess()
+            } catch (error) {
+                console.log(error)
+            }
+        },
         initialValues: {
             name: '',
             email: ''
@@ -63,9 +73,14 @@ export const TimeBlock = ({ time }) => {
     })
 
     return (
-        <Button p={8} bg="blue.500" color="white" onClick={toggle}>
+        <Button p={8} bg="blue.500" color="white" onClick={toggle} disabled={disabled}>
             {time}
-            <ModalTimeBlock isOpen={isOpen} onClose={toggle} onComplete={handleSubmit}>
+            {!disabled && <ModalTimeBlock
+                isOpen={isOpen}
+                onClose={toggle}
+                onComplete={handleSubmit}
+                isSubmitting={isSubmitting}
+            >
                 <>
                     <Input
                         label="Nome:"
@@ -77,11 +92,13 @@ export const TimeBlock = ({ time }) => {
                         onChange={handleChange}
                         onBlur={handleBlur}
                         size="lg"
+                        disabled={isSubmitting}
                     />
 
                     <Input
                         label="Telefone"
                         name="phone"
+                        mask={['(99) 9999-9999', '(99) 9 9999-9999']}
                         error={errors.phone}
                         value={values.phone}
                         onChange={handleChange}
@@ -89,9 +106,10 @@ export const TimeBlock = ({ time }) => {
                         placeholder="(99) 9 9999-9999"
                         size="lg"
                         mt={4}
+                        disabled={isSubmitting}
                     />
                 </>
-            </ModalTimeBlock>
+            </ModalTimeBlock>}
         </Button>
     )
 }

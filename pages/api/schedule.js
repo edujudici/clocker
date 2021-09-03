@@ -9,17 +9,21 @@ const startAt = new Date(2021, 1, 1, 8, 0)
 const endAt = new Date(2021, 1, 1, 17, 0)
 const totalHours = differenceInHours(endAt, startAt)
 
-const timeBlocks = []
+const timeBlocksList = []
 
 for (let blockIndex = 0; blockIndex <= totalHours; blockIndex++) {
     const time = format(addHours(startAt, blockIndex), 'HH:mm')
-    timeBlocks.push(time)
+    timeBlocksList.push(time)
 }
 
 const getUserId = async (username) => {
     const profileDoc = await profile
         .where('username', '==', username)
         .get()
+
+    if (!profileDoc.docs.length) {
+        return false
+    }
 
     const { userId } = profileDoc.docs[0].data()
 
@@ -29,34 +33,48 @@ const getUserId = async (username) => {
 
 const setSchedule = async (req, res) => {
     const userId = await getUserId(req.body.username)
-    const doc = await agenda.doc(`${userId}#${req.body.when}`).get()
+    const docId = `${userId}#${req.body.date}#${req.body.time}`
+
+    const doc = await agenda.doc(docId).get()
 
     if (doc.exists) {
-        return res.status(400)
+        console.log('doc')
+        res.status(400).json({ message: 'Time blocked!' })
+        return
     }
 
-    agenda.doc(`${userId}#${req.body.when}`).set({
+    const block = await agenda.doc(docId).set({
         userId,
-        when: req.body.when,
+        date: req.body.date,
+        time: req.body.time,
         name: req.body.name,
         phone: req.body.phone,
     })
 
-    return res.status(200)
+    return res.status(200).json(block)
 }
 
-const getSchedule = (req, res) => {
+const getSchedule = async (req, res) => {
     try {
-        // const profileDoc = await profile
-        //     .where('username', '==', req.query.username)
-        //     .get()
+        const userId = await getUserId(req.query.username)
 
-        // const snapshot = await agenda
-        //     .where('userId', '==', profileDoc.userId)
-        //     .where('when', '==', req.query.when)
-        //     .get()
+        if (!userId) {
+            return res.status(404).json({ message: 'Invalid username' })
+        }
 
-        return res.status(200).json(timeBlocks)
+        const snapshot = await agenda
+            .where('userId', '==', userId)
+            .where('date', '==', req.query.date)
+            .get()
+
+        const docs = snapshot.docs.map(doc => doc.data())
+
+        const result = timeBlocksList.map(time => ({
+            time,
+            isBlocked: !!docs.find(doc => doc.time === time)
+        }))
+
+        return res.status(200).json(result)
     } catch (error) {
         console.log('FB ERROR:', error)
         return res.status(401)
